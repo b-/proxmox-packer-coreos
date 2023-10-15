@@ -1,0 +1,47 @@
+variant: fcos
+version: 1.4.0
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPDx+KV/SW4RGIeKA2FHU9S7bZgnJMy77N6lBeo2n8sJ
+        - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHdMIGHd1NH8GywMBndY6de0aCjMeZmBCPMaZdNCwHNC bri@fedora
+
+      groups:
+        - wheel
+        - sudo
+      password_hash: $y$j9T$5BzrAkHjLSFV4Em1J52Lv/$glLlvQnJrpMWjhXJxeDVBqJEKI3VgoDjfuEu1f1SQE4
+storage:
+  directories:
+    - path: /etc/ucore-autorebase
+      mode: 0754
+  files:
+    - path: /etc/ucore-autorebase/ucore-autorebase.sh
+      contents:
+        inline: |
+          #!/usr/bin/bash
+          echo "Rebasing to uCore OCI in 5 seconds"
+          sleep 5
+          rpm-ostree rebase ostree-unverified-registry:ghcr.io/ublue-os/ucore:stable \
+            && touch /etc/ucore-autorebase/.complete \
+            && systemctl disable ucore-autorebase.service \
+            && systemctl reboot
+      mode: 0754
+systemd:
+  units:
+    - name: ucore-autorebase.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=uCore autorebase to OCI and reboot
+        ConditionPathExists=!/etc/ucore-autorebase/.complete
+        ConditionFileIsExecutable=/etc/ucore-autorebase/ucore-autorebase.sh
+        After=network-online.target
+        Wants=network-online.target
+        [Service]
+        Type=oneshot
+        StandardOutput=journal+console
+        RemainAfterExit=yes
+        ExecStart=/etc/ucore-autorebase/ucore-autorebase.sh
+        [Install]
+        WantedBy=multi-user.target
